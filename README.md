@@ -42,13 +42,17 @@ Below data reports the total deaths per day from COVID-19 between February 29 to
 
 What is the average total deaths per day of the week?
 
-![covid_19_deaths_against_time_day_of_week](https://github.com/eplatero97/COVID-19-Reported-Deaths/imgs/covid_19_deaths_against_time_day_of_week.png)
+![covid_19_deaths_against_time_day_of_week.png](https://github.com/eplatero97/COVID-19-Reported-Deaths/blob/master/imgs/covid_19_deaths_against_time_day_of_week.png?raw=true)
+
+
 
 We can interpret the above graph as each corresponding day having its corresponding positive and negative effect on reported COVID-19 deaths (e.g., on Mondays, we expect to see about a 23 decrease in COVID-19 deaths than Sunday and Tuesday we expect a +48 increase in deaths due to COVID-19).
 
 **# what is the total deaths due to COVID-19 per U.S. region?**
 
-![count_of_covid_19_deaths_per_region](https://github.com/eplatero97/COVID-19-Reported-Deaths/imgs/count_of_covid_19_deaths_per_region.png)
+![count_of_covid_19_deaths_per_region.png](https://github.com/eplatero97/COVID-19-Reported-Deaths/blob/master/imgs/count_of_covid_19_deaths_per_region.png?raw=true)
+
+
 
 We see that although the U.S. regions have a similar count, U.S. territories appear to have much less deaths due to COVID-19. This may be because: 
 
@@ -58,13 +62,13 @@ We see that although the U.S. regions have a similar count, U.S. territories app
 
 **# what is the distribution of deaths caused by COVID-19?**
 
-![histogram_of_deaths_due_to_covid_19](https://github.com/eplatero97/COVID-19-Reported-Deaths/imgs/histogram_of_deaths_due_to_covid_19.png)
+![histogram_of_deaths_due_to_covid_19.png](https://github.com/eplatero97/COVID-19-Reported-Deaths/blob/master/imgs/histogram_of_deaths_due_to_covid_19.png?raw=true)
 
 The above histogram resembles an exponential decay. We can see that there is a value of around 800 that causes the histogram to have a large right tail. To have a single (or a few) value so high is concerning and gives concern whether this was an error on inserting 800 instead of 80 or something similar. 
 
 **# what is the distribution of deaths per regions and U.S. territories?**
 
-![histogram_of_deaths_due_to_covid_19_per_region](https://github.com/eplatero97/COVID-19-Reported-Deaths/imgs/histogram_of_deaths_due_to_covid_19_per_region.png)
+![histogram_of_deaths_due_to_covid_19_per_region.png](https://github.com/eplatero97/COVID-19-Reported-Deaths/blob/master/imgs/histogram_of_deaths_due_to_covid_19_per_region.png?raw=true)
 
 All distributions per region follow the same exponential decay pattern.
 
@@ -88,7 +92,7 @@ When conducting the ANOVA test, a p-value of 4.83207e-32 was received, which mea
 
 **# Wilcox's pairwise non-parametric test**?
 
-![pairwise_relationships](https://github.com/eplatero97/COVID-19-Reported-Deaths/imgs/pairwise_relationships.png)
+![pairwise_relationships.png](https://github.com/eplatero97/COVID-19-Reported-Deaths/blob/master/imgs/pairwise_relationships.png?raw=true)
 
 From the above graph, we see that there are **significant differences** in reported deaths due to COVID-19 between the following region pairs:
 
@@ -107,7 +111,7 @@ On this section we will explore the data fitting capabilities of linear and log 
 
 Let us analyze a linear model with total deaths per day as y and each passing day as x
 
-![covid_19_deaths_against_time_linear_regression](https://github.com/eplatero97/COVID-19-Reported-Deaths/imgs/covid_19_deaths_against_time_linear_regression.png)
+![covid_19_deaths_against_time_linear_regression.png](https://github.com/eplatero97/COVID-19-Reported-Deaths/blob/master/imgs/covid_19_deaths_against_time_linear_regression.png?raw=true)
 
 Notice that the shape of our graph highly resembles our graph of confirmed COVID-19 cases.
 
@@ -145,11 +149,7 @@ where the data interpretation that the:
 - `MSE`: Our Estimated Mean Squared error is `119530.05`.
 - `R-squared`: 75.61% of the variation in our deaths due to COVID-19 can be explained by the passing days.
 
-
-
-![covid_19_deaths_against_time_linear_regression_assumptions](https://github.com/eplatero97/COVID-19-Reported-Deaths/imgs/covid_19_deaths_against_time_linear_regression_assumptions.png)
-
-
+![covid_19_deaths_against_time_linear_regression_assumptions.png](https://github.com/eplatero97/COVID-19-Reported-Deaths/blob/master/imgs/covid_19_deaths_against_time_linear_regression_assumptions.png?raw=true)
 
 From above, although our model approximately satisfies our normal assumption, it does not meet our requirement for the error’s to be uncorrelated. Despite the violation, our model seems to be performing reasonably well.
 
@@ -157,7 +157,7 @@ From above, although our model approximately satisfies our normal assumption, it
 
 Let us apply a log transformation to our data 
 
-![covid_19_deaths_against_time_log_regression](https://github.com/eplatero97/COVID-19-Reported-Deaths/imgs/covid_19_deaths_against_time_log_regression.png)
+![covid_19_deaths_against_time_log_regression.png](https://github.com/eplatero97/COVID-19-Reported-Deaths/blob/master/imgs/covid_19_deaths_against_time_log_regression.png?raw=true)
 
 From first glance, we can already tell that our log transformation of the input significantly improves our model’s fitted values.
 
@@ -195,18 +195,11 @@ While we are unable to compare `MSE` results between the linear and log models, 
 
 Let us check if our model validates our linear model’s assumptions.
 
-![covid_19_deaths_against_time_log_regression_assumptions](https://github.com/eplatero97/COVID-19-Reported-Deaths/imgs/covid_19_deaths_against_time_log_regression_assumptions.png)
+![covid_19_deaths_against_time_log_regression_assumptions.png](https://github.com/eplatero97/COVID-19-Reported-Deaths/blob/master/imgs/covid_19_deaths_against_time_log_regression_assumptions.png?raw=true)
 
 Our QQ-plot shows that as we further down the tails on either side, the further they are from our linear line.
 
 Further, our residual-fitted plot indicates significant deviation from our desired constant variance as we move further down to the right.
-
-### Conclusion
-
-From the above, we have found two main ideas under an alpha level of 0.05:
-
-1. Average deaths are significantly different between region
-2. Discovered pairwise region with significant average deaths
 
 ## References
 
