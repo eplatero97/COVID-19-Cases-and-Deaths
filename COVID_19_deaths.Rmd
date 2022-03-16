@@ -1,0 +1,520 @@
+---
+title: "COVID_project"
+author: "Erick Platero"
+date: "5/3/2020"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+
+
+```{r}
+setwd('C:\\Users\\erick\\Documents\\University\\UH-D\\Spring 2020\\statistical_regression\\group_project')
+
+library(data.table)
+deaths = fread('COVID_19.csv')
+setnames(deaths, old = c('value'), new = c('deaths'))
+head(deaths)
+```
+
+```{r}
+
+# Change date format
+library(stringr)
+fix_dates = function(date_) {
+#date_ = "May 1"
+  separate = str_split(date_, " ")
+  month  = separate[[1]][1]
+  day = separate[[1]][2]
+  
+  init = substr(month, start = 1, stop = 1)
+  
+  if (init == "F") {
+    new_month = '2' }
+  
+  else if (init == "M") {
+    new_month = '3' }
+  else {
+    new_month = '4' }
+  
+  year = '20'
+  new_date = paste(new_month, day, year,sep = '/')
+  return(new_date)
+  
+ }
+ 
+ 
+# USE.NAMES = F turns to vector 
+vec = Vectorize(fix_dates, vectorize.args = "date_", USE.NAMES = F)
+new_dates = vec(deaths$Date)
+
+library(lubridate)
+
+# convert from m/d/y => y-m-d
+new_dates = mdy(new_dates)
+deaths$Date = as.Date(new_dates)
+
+# get total number of deaths per day
+death_by_dates = deaths[, .(sum(deaths)), by = .(Date)]
+setnames(death_by_dates, old = c('V1'), new = c('total_deaths_per_day'))
+head(death_by_dates)
+```
+
+
+
+```{r}
+library(ggplot2)
+ggplot(death_by_dates, aes(x = Date, y = total_deaths_per_day)) +
+  geom_line() + scale_color_manual(values = c('#00AFBB')) +
+  theme_minimal() + geom_smooth(method = 'lm', se = F)
+
+```
+
+The above seems to be a reasonable approximation. Let's validate our model
+```{r}
+linear_m = lm(total_deaths_per_day ~ Date, data = death_by_dates)
+summary(linear_m)
+MSE = summary(linear_m)$sigma^2
+paste("MSE:",MSE)
+```
+
+
+Data Interpretations:
+1. **Date Coefficient**: For every day that passes, there is a 46 increase in deats due to COVID-19
+
+2. **p-value**: Given that our p-values for our Intercept and Date coefficients are approximately zero, we would reject the Null hypothesis that suggests that there is no relationship between the number of passing days and the number of deaths caused by COVID-19
+
+3. **MSE**: Our Estimated Mean Squared error is 119530.05
+
+4. **\R^2**: 75.61% of the variation in our deaths due to COVID-19 can be explained by the passing days
+
+Does the model meet our assumptions?
+```{r}
+# check residual-fitted and qqplotv plot
+plot(linear_m, which = 1:2)
+```
+
+From above, although our model approximately satisfies our normal assumption, it does not meet our requirement for the error's to be uncorrelated
+
+Despite the violation, our model seems to be performing reasonably well
+
+
+What if we run a log linear regression?
+```{r}
+death_by_dates$log_deaths = log(death_by_dates$total_deaths_per_day)
+
+ggplot(death_by_dates, aes(x = Date, y = log_deaths)) +
+  geom_line() + scale_color_manual(values = c('#00AFBB')) +
+  theme_minimal() + geom_smooth(method = 'lm', se = F)
+```
+From first glance, we can already tell that our log transformation of the input significantly improves our model's fitted values.
+
+Now, let us analyze its linear properties
+```{r}
+log_m = lm(log_deaths ~ Date, data = death_by_dates)
+summary(log_m)
+MSE = summary(log_m)$sigma^2
+paste('MSE:', MSE)
+```
+Data Interpretations:
+1. **Date Coefficient**: For every one log(day) that passes, there is an expected .0195 increase in deats due to COVID-19
+
+2. **p-value**: Given that our p-values for our Intercept and Date coefficients are approximately zero, we would reject the Null hypothesis that suggests that there is no relationship between the number of passing days and the number of deaths caused by COVID-19
+
+3. **MSE**: Our Estimated Mean Squared error is .3107
+
+4. **\R^2**: 95.51% of the variation in our deaths due to COVID-19 can be explained by the log(days)
+
+Such results validate that our log model is superior than our normal linear regression as the MSE for log is significantly lower and \R^2 is significantly higher.
+
+Let us check if our model validates our linear model's assumptions
+```{r}
+# check residual-fitted and qqplotv plot
+plot(log_m, which = 1:2)
+
+```
+Our QQ-plot shows that as we further down the tails on either side, the further they are from our linear line. 
+
+Further, our residual-fitted plot indicates significationt deviation from our desired constant variance as we move further down to the right 
+
+
+
+
+
+```{r}
+library(prophet)
+
+# rename Date => ds and V1 => y
+setnames(death_by_dates, old = c('Date','total_deaths_per_day'), new = c('ds','y'))
+
+# use fb prophet
+m = prophet(death_by_dates)
+
+# predict next 20 days
+future = make_future_dataframe(m, periods = 1)
+
+# make forecast
+forecast = predict(m, future)
+
+# break down data into overall trend and weekly average reports
+prophet_plot_components(m, forecast)
+
+```
+
+On average, we can interpret the weekly graph as:
+
+Monday having a \appr -20 effect on COVID-19 deaths
+Tuesday having a \appr +48 effect on COVID-19 deaths
+Wednesday having a \appr +27 effect on COVID-19 deaths
+Thursday having a \appr -50 effect on COVID-19 deaths
+Friday having a \appr +48 effect on COVID-19 deaths
+Saturday having a \appr +69 effect on COVID-19 deaths
+Sunday having a \appr -43 effect on COVID-19 deaths
+
+
+```{r}
+# args quan and groups must be strings
+quan_vs_groups = function(tbl, quan, groups, alpha = .05) {
+  print("Conducting ANOVA test on our data:")
+  # below 'separator' is only used to make output more lucid to the reader
+  separator = rep('-',80)
+  
+  # if we get to perform pairwise tests, then this value will be used to distinguish what method to use
+  classical = 0
+  
+  require(car)
+  require(pryr)
+  require(ggpubr)
+  require(coin)
+  require(nortest)
+  
+  print("Exploratory Data Analysis:")
+  
+  # Explore class balance between groups
+  n_groups = tbl[, .N, get(groups)]
+  print(ggplot(n_groups, aes_string(x = 'get', y = 'N', fill = 'get')) + geom_bar(stat='identity') + geom_text(aes(label = N), vjust = 1.6, color = 'black') + labs(x = groups,y = 'Count', title = paste('Count of data by',groups)))
+  
+
+  
+  
+  quan_data = tbl[,get(quan)]
+  n_obs = dim(tbl)[1]
+  
+  # plot spread of data and compare mean
+  ggline(tbl, x = groups, y = quan,add=c('mean_se','jitter'), add.params = list(color='red'),title = paste(groups, 'comparison'))
+  
+  
+  n_groups = length(levels(tbl[, get(groups)]))
+  hist(quan_data, main = paste("Histogram of ", quan))
+  
+  # if there are more than 4 groups
+  if (n_groups <= 4) {
+    # plot histogram by groups
+    print(ggplot(tbl, aes_string(x = quan, fill = groups)) + geom_histogram() + facet_grid(get(groups) ~ .) + ggtitle(paste("Histograms partitioned by ", groups)) )
+  }
+
+    
+    # Check for homogeneity of Variance. If this fails, we automatically turn to Kruska's test as ANOVA and permuted ANOVA are NOT robust against non-homogeneity of variance
+    print("We will conduct Levene's test for variance homogeneity to assert whether our data passes such constraint required by ANOVA.")
+    levene_test = leveneTest(get(quan) ~ get(groups), tbl)
+    lev_p = levene_test$'Pr(>F)'[1]
+    
+
+    print("Ho: Variance is homogenous")
+    print("Ha: Variance is NOT homogenous")
+    
+    # If TRUE, data does NOT pass homogeneity of variance and we resolve to Kruska's non-parametric ANOVA
+    if (lev_p < alpha) {
+      cat("\nGiven that our p-value is",lev_p, ", which is <",alpha, ",data did NOT pass homogeneity test of variance, thus we REJECT Ho and resolve to Kruska's non-parametric ANOVA as parametric methods are NOT robust against non-homogeneity\n")
+      krus = kruskal.test(get(quan) ~ get(groups), tbl)
+      ANOVA_pvalue = krus$p.value
+      cat(separator)
+    } else {
+      cat("\nGiven that our p-value is",lev_p, ", which is >",alpha, ",data passed homogeneity test of variance, thus we accept Ho and test if normality requirement is met\n")
+      
+      cat(separator,'\n')
+      print("Normality Test:\n")
+      #QQ-plot
+      print(qqnorm(quan_data))
+      print(qqline(quan_data))
+      
+      # Assess normality parametrically
+      cat("\nNumber of observations:", n_obs)
+      
+
+      
+      if (n_obs <= 5000) {
+        
+        print("Given that we have <= 5000 observations, we will perform a Shapiro test for normality")
+        shap = shapiro.test(quan_data)
+        norm_pvalue = shap$p.value
+      } else {
+        print("Given that we have > 5000 observations, we will perform Anderson-Darling test for normality")
+        and = ad.test(quan_data)
+        norm_pvalue = and$p.value
+      }
+      
+      print("Ho: Data distribution is normal")
+      print("Ha: Data distribution is NOT normal")
+      
+      # if TRUE, distribution is NOT normal, perform permuted ANOVA, else perform classic ANOVA
+      if (norm_pvalue < alpha) {
+        cat('\nGiven that our normality test resulted in a p-value of', norm_pvalue,', which is <',alpha,'we reject the notion that our distribution is normal and perform permuted F-test\n')
+        cat(separator,'\n')
+        print("Permuted ANOVA test:")
+        ANOVA_pvalue = pvalue(oneway_test(get(quan) ~ get(groups), tbl))
+      } else {
+        cat('\nGiven that our normality test resulted in a p-value of', norm_pvalue,', which is >',alpha,'we reject the notion that our distribution is NOT normal and perform classical ANOVA test\n')
+        classic_ANOVA = anova(lm(get(quan) ~ get(groups), tbl))
+        classical = 1
+        cat(separator)
+        print("Classical ANOVA test:")
+        ANOVA_pvalue = classic_ANOVA$`Pr(>F)`
+      }
+    }
+    
+      
+      # Test F-statistic
+      
+      print('Ho: Distributions among groups are NOT statistically significant')
+      print('Ha: Distributions among groups ARE statistically significant')
+      
+      
+      # If TRUE, we reject Ha
+      if ((!ANOVA_pvalue < alpha)) {
+        cat("Given that our p-value is",ANOVA_pvalue, ", which is >",alpha, ", we reject the notion that average", quan, "between",groups, "are statistically significant and thus we accept Ho")
+        
+        return(ANOVA_pvalue)
+      }
+        
+        cat("Given that our p-value is",ANOVA_pvalue, ", which is <",alpha, ", we reject the notion that average", quan, "between",groups, "are not statistically significant.\n")
+        
+        cat("Thus, we reject Ho and now perform pairwise testing to explore which group(s) are statistically significantly different from each other")
+        
+        cat(separator,'\n')
+        print("Pairwise Testing:")
+    
+        if (classical) {
+          print("Given that normality requirement was met, we will perform pairwise t-tests")
+          pairwise = pairwise.t.test(quan_data, tbl[, get(groups)], p.adjust.method = 'BH')
+          pair_pvalues = pairwise$p.value
+        } else {
+        print("Given that normality was NOT met, we will perform Wilcox\'s pairwise non-parametric test")
+        # else, perform non-parametric pairwise comparisons using Wilcox's test
+        pairwise = pairwise.wilcox.test(quan_data, tbl[, get(groups)], p.adjust.method = 'BH')
+        pair_pvalues = pairwise$p.value
+        }
+        
+        bools = pair_pvalues < alpha
+        
+        # plot p-values
+        clean = pair_pvalues
+        clean[is.na(clean)] = 0
+        clean
+        
+        my_cols <- c("#0D0887FF", "#6A00A8FF", "#B12A90FF",
+                     "#E16462FF", "#FCA636FF", "#F0F921FF")
+        
+        print(ggballoonplot(clean, fill= 'value') + scale_fill_gradientn(colors = my_cols) + ggtitle("P-values from pairwise comparisons")) 
+        
+        # plot boolean p-values that were less than .05
+        clean2 = bools
+        clean2[is.na(clean2)] = 0
+        
+        print(ggballoonplot(clean2, fill = 'value') + scale_fill_gradientn(colors = my_cols) + labs(title =paste('Significant Pairwise Differences between ',groups,'\nYellow Color Baloons: Significant Differences\nOtherwise, no significant diffirence'))) 
+        print('Yellow Color Baloons: Significant Differences\nOtherwise, no significant diffirence')
+        
+        # find percentage of yellow balloons
+        success_ratio =sum(clean2) / sum(!is.na(pair_pvalues))
+        cat('Ratio of significant different pairwise Comparisons:', success_ratio,'\n')
+        cat('We find that out of all ', groups,' permutations, about',success_ratio,'of all permutations have significantly different average', quan,'\n')
+        
+        successes = sum(clean2)
+        trials = sum(!is.na(pair_pvalues))
+        
+
+        cat(separator,'\n')
+        
+        print("Binomial Test:")
+        print("Given our pairwise ratios, we will perform a binomial test to see if the number of significant pairwise relationships are as good as chance or if there is something more than a random chance")
+        
+        # test on a 95% CI
+        print('Ho: Number of successes for significant pairwise differences act randomly')
+        print('Ha: Number of successes for significant pairwise differences do NOT act randomly')
+
+        
+        
+        binom = binom.test(successes, trials, conf.level = .95)
+        binom_pvalue = binom$p.value
+        if (binom_pvalue < alpha) {
+          cat("Given that our p-value ", binom_pvalue,'is < our alpha ', alpha,', we REJECT Ho in favor of Ha\n')
+          binomial_result = 'do NOT'
+        } else {
+          cat("Given that our p-value ", binom_pvalue,'is > our alpha ', alpha,', we do NOT REJECT Ho\n')
+          binomial_result = 'do'
+        }
+          
+          
+          CI = binom$conf.int
+          cat("Out of infinitely many Confidence Intervals, we are 95% confident that our interval (", CI[1],'-',CI[2],") contains the TRUE ratio of significantly different pairwise relationships\n")
+          
+          # Visual Representation of CI
+          print(ggplot(mapping = aes(x = 1, y = success_ratio)) + geom_point(size=4) + geom_errorbar(aes(ymax = CI[2], ymin = CI[1])) + ggtitle("95% Confidence Interval"))
+          
+          
+          # Conclusions
+          cat('From the above, we have found three main ideas under an alpha level of',alpha,':
+1. Average',quan, 'are significantly different between',groups,'
+2. Discovered pairwise',groups, 'with significant averge',quan,'
+3. Resolved that our binomial pairwise significant distributions among',groups,binomial_result, 'variate randomly')
+}
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+quan_vs_groups(deaths,"deaths", "region")
+```
+
+```{r}
+cases = fread('reported_COVID_cases.csv')
+setnames(cases, old = 'value', new = 'reported_COVID_cases')
+head(cases)
+```
+
+```{r}
+quan_vs_groups(cases,"reported_COVID_cases", "region")
+```
+
+
+
+```{r}
+# unmelt dataframe
+
+# no
+cases_reported = cases[, .(Date, state, reported_COVID_cases)]
+state_reported = cases[, .(Date, state, `Total Confirmed Cases by States`)]
+region_reported = cases[, .(Date, state, reported_COVID_cases)]
+country_reported = cases[, .(Date, state, reported_COVID_cases)]
+
+
+wide_cases = dcast(cases_reported, Date ~state)
+wide_state = dcast(state_reported, Date ~state)
+wide_region = dcast(cases_, Date ~state)
+wide_country = dcast(cases_, Date ~state)
+
+
+# now add confirmed cases 
+ 
+new_dates = vec(wide_cases$Date)
+
+
+
+```
+
+
+
+#################################### Cases ############################
+
+
+
+# re-format dates
+```{r}
+# assume we have cases data
+
+
+# Change date format
+library(stringr)
+fix_dates = function(date_) {
+#date_ = "May 1"
+  separate = str_split(date_, "-")
+  month  = separate[[1]][2]
+  day = separate[[1]][1]
+  
+  init = substr(month, start = 1, stop = 1)
+  
+  if (init == "F") {
+    new_month = '2' }
+  
+  else if (init == "M") {
+    new_month = '3' }
+  else {
+    new_month = '4' }
+  
+  year = '20'
+  new_date = paste(new_month, day, year,sep = '/')
+  return(new_date)
+  
+ }
+ 
+ 
+# USE.NAMES = F turns to vector 
+vec = Vectorize(fix_dates, vectorize.args = "date_", USE.NAMES = F)
+new_dates = vec(data$Date)
+
+library(lubridate)
+
+# convert from m/d/y => y-m-d
+new_dates = mdy(new_dates)
+data$Date = as.Date(new_dates)
+
+
+write.csv(wide_cases, 'reported_COVID19_cases_wideformat.csv')
+```
+
+
+```{r}
+test = fread('reported_COVID19_cases_wideformat.csv')
+new = test[1:45,1:58]
+write.csv(data, 'reported_COVID19_cases_wideformat.csv')
+```
+
+```{r}
+library(data.table)
+# perform regression on following
+data = fread('reported_COVID19_cases_wideformat.csv')
+data$V1 = NULL
+
+data$Date = as.Date(data$Date)
+
+# simple multiple linear regression 
+linear = lm(new_cofirmed ~ ., data = data[,-1])
+
+
+# perform linear regression on below data
+cases_by_date = data[, .(sum(new_cofirmed)), by = .(Date)]
+
+library(ggplot2)
+ggplot(cases_by_date, aes(x = Date, y = V1)) +
+  geom_line() +
+  theme_minimal() + geom_smooth(method = 'lm', se = F)
+
+linear_cases = lm(V1 ~ Date, cases_by_date)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
