@@ -1,4 +1,4 @@
-# COVID-19 Deaths
+# COVID-19 Reported Deaths
 
 ## Introduction
 
